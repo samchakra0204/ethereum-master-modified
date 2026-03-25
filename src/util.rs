@@ -44,8 +44,6 @@ impl trie_root::TrieStream for Hash256RlpTrieStream {
 		_maybe_value: Option<TrieStreamValue>,
 		_has_children: impl Iterator<Item = bool>,
 	) {
-		// an item for every possible nibble/suffix
-		// + 1 for data
 		self.stream.begin_list(17);
 	}
 
@@ -55,10 +53,9 @@ impl trie_root::TrieStream for Hash256RlpTrieStream {
 
 	fn end_branch(&mut self, value: Option<TrieStreamValue>) {
 		match value {
-			Some(value) => match value {
-				TrieStreamValue::Inline(value) => self.stream.append(&value),
-				TrieStreamValue::Node(value) => self.stream.append(&value),
-			},
+			Some(v) => self.stream.append(&match v {
+				TrieStreamValue::Inline(x) | TrieStreamValue::Node(x) => x,
+			}),
 			None => self.stream.append_empty_data(),
 		};
 	}
@@ -66,10 +63,9 @@ impl trie_root::TrieStream for Hash256RlpTrieStream {
 	fn append_leaf(&mut self, key: &[u8], value: TrieStreamValue) {
 		self.stream.begin_list(2);
 		self.stream.append_iter(hex_prefix_encode(key, true));
-		match value {
-			TrieStreamValue::Inline(value) => self.stream.append(&value),
-			TrieStreamValue::Node(value) => self.stream.append(&value),
-		};
+		self.stream.append(&match value {
+			TrieStreamValue::Inline(x) | TrieStreamValue::Node(x) => x,
+		});
 	}
 
 	fn append_extension(&mut self, key: &[u8]) {
@@ -91,25 +87,6 @@ impl trie_root::TrieStream for Hash256RlpTrieStream {
 }
 
 // Copy from `triehash` crate.
-/// Hex-prefix Notation. First nibble has flags: oddness = 2^0 & termination = 2^1.
-///
-/// The "termination marker" and "leaf-node" specifier are completely equivalent.
-///
-/// Input values are in range `[0, 0xf]`.
-///
-/// ```markdown
-///  [0,0,1,2,3,4,5]   0x10012345 // 7 > 4
-///  [0,1,2,3,4,5]     0x00012345 // 6 > 4
-///  [1,2,3,4,5]       0x112345   // 5 > 3
-///  [0,0,1,2,3,4]     0x00001234 // 6 > 3
-///  [0,1,2,3,4]       0x101234   // 5 > 3
-///  [1,2,3,4]         0x001234   // 4 > 3
-///  [0,0,1,2,3,4,5,T] 0x30012345 // 7 > 4
-///  [0,0,1,2,3,4,T]   0x20001234 // 6 > 4
-///  [0,1,2,3,4,5,T]   0x20012345 // 6 > 4
-///  [1,2,3,4,5,T]     0x312345   // 5 > 3
-///  [1,2,3,4,T]       0x201234   // 4 > 3
-/// ```
 fn hex_prefix_encode(nibbles: &[u8], leaf: bool) -> impl Iterator<Item = u8> + '_ {
 	let inlen = nibbles.len();
 	let oddness_factor = inlen % 2;
