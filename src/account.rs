@@ -8,8 +8,8 @@ use ethereum_types::{H256, U256};
 )]
 #[cfg_attr(feature = "with-serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Account {
-    pub bal: U256,
+    pub balance: U256,
     pub nonce: U256,
-    pub sroot: H256,
-    pub chash: H256,
+    pub storage_root: H256,
+    pub code_hash: H256,
 }
