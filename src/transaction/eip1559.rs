@@ -32,24 +32,23 @@ pub struct EIP1559Transaction {
 
 impl EIP1559Transaction {
 	pub fn hash(&self) -> H256 {
-		let encoded = rlp::encode(self);
-		let mut out = alloc::vec![0; 1 + encoded.len()];
-		out[0] = 2;
-		out[1..].copy_from_slice(&encoded);
+		let enc = rlp::encode(self);
+		let mut out = alloc::vec![2u8];
+		out.extend_from_slice(&enc);
 		H256::from_slice(Keccak256::digest(&out).as_ref())
 	}
 
-	pub fn to_message(self) -> EIP1559TransactionMessage {
+	pub fn to_message(&self) -> EIP1559TransactionMessage {
 		EIP1559TransactionMessage {
 			chain_id: self.chain_id,
 			nonce: self.nonce,
 			max_priority_fee_per_gas: self.max_priority_fee_per_gas,
 			max_fee_per_gas: self.max_fee_per_gas,
 			gas_limit: self.gas_limit,
-			action: self.action,
+			action: self.action.clone(),
 			value: self.value,
-			input: self.input,
-			access_list: self.access_list,
+			input: self.input.clone(),
+			access_list: self.access_list.clone(),
 		}
 	}
 }
@@ -66,9 +65,11 @@ impl rlp::Encodable for EIP1559Transaction {
 		s.append(&self.value);
 		s.append(&self.input);
 		s.append_list(&self.access_list);
-		s.append(&self.signature.odd_y_parity());
-		s.append(&U256::from_big_endian(&self.signature.r()[..]));
-		s.append(&U256::from_big_endian(&self.signature.s()[..]));
+
+		let sig = &self.signature;
+		s.append(&sig.odd_y_parity());
+		s.append(&U256::from_big_endian(sig.r().as_bytes()));
+		s.append(&U256::from_big_endian(sig.s().as_bytes()));
 	}
 }
 
@@ -77,6 +78,22 @@ impl rlp::Decodable for EIP1559Transaction {
 		if rlp.item_count()? != 12 {
 			return Err(DecoderError::RlpIncorrectListLen);
 		}
+
+		let odd = rlp.val_at(9)?;
+		let r_u: U256 = rlp.val_at(10)?;
+		let s_u: U256 = rlp.val_at(11)?;
+
+		let mut r_bytes = [0u8; 32];
+		let mut s_bytes = [0u8; 32];
+		r_u.to_big_endian(&mut r_bytes);
+		s_u.to_big_endian(&mut s_bytes);
+
+		let sig = TransactionSignature::new(
+			odd,
+			H256::from(r_bytes),
+			H256::from(s_bytes),
+		)
+		.ok_or(DecoderError::Custom("Invalid transaction signature"))?;
 
 		Ok(Self {
 			chain_id: rlp.val_at(0)?,
@@ -88,13 +105,7 @@ impl rlp::Decodable for EIP1559Transaction {
 			value: rlp.val_at(6)?,
 			input: rlp.val_at(7)?,
 			access_list: rlp.list_at(8)?,
-			signature: {
-				let odd_y_parity = rlp.val_at(9)?;
-				let r = H256::from(rlp.val_at::<U256>(10)?.to_big_endian());
-				let s = H256::from(rlp.val_at::<U256>(11)?.to_big_endian());
-				TransactionSignature::new(odd_y_parity, r, s)
-					.ok_or(DecoderError::Custom("Invalid transaction signature format"))?
-			},
+			signature: sig,
 		})
 	}
 }
@@ -114,10 +125,9 @@ pub struct EIP1559TransactionMessage {
 
 impl EIP1559TransactionMessage {
 	pub fn hash(&self) -> H256 {
-		let encoded = rlp::encode(self);
-		let mut out = alloc::vec![0; 1 + encoded.len()];
-		out[0] = 2;
-		out[1..].copy_from_slice(&encoded);
+		let enc = rlp::encode(self);
+		let mut out = alloc::vec![2u8];
+		out.extend_from_slice(&enc);
 		H256::from_slice(Keccak256::digest(&out).as_ref())
 	}
 }
