@@ -9,6 +9,10 @@ use crate::{
 	log::Log,
 };
 
+fn encode_rlp<T: rlp::Encodable>(r: &T) -> BytesMut {
+	rlp::encode(r)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[derive(rlp::RlpEncodable, rlp::RlpDecodable)]
 pub struct FrontierReceiptData {
@@ -35,7 +39,7 @@ pub type ReceiptV0 = FrontierReceiptData;
 
 impl EnvelopedEncodable for ReceiptV0 {
 	fn type_id(&self) -> Option<u8> { None }
-	fn encode_payload(&self) -> BytesMut { rlp::encode(self) }
+	fn encode_payload(&self) -> BytesMut { encode_rlp(self) }
 }
 
 impl EnvelopedDecodable for ReceiptV0 {
@@ -49,7 +53,7 @@ pub type ReceiptV1 = EIP658ReceiptData;
 
 impl EnvelopedEncodable for ReceiptV1 {
 	fn type_id(&self) -> Option<u8> { None }
-	fn encode_payload(&self) -> BytesMut { rlp::encode(self) }
+	fn encode_payload(&self) -> BytesMut { encode_rlp(self) }
 }
 
 impl EnvelopedDecodable for ReceiptV1 {
@@ -75,7 +79,7 @@ impl EnvelopedEncodable for ReceiptV2 {
 
 	fn encode_payload(&self) -> BytesMut {
 		match self {
-			Self::Legacy(r) | Self::EIP2930(r) => rlp::encode(r),
+			Self::Legacy(r) | Self::EIP2930(r) => encode_rlp(r),
 		}
 	}
 }
@@ -94,8 +98,7 @@ impl EnvelopedDecodable for ReceiptV2 {
 			return Ok(Self::Legacy(Decodable::decode(&rlp)?));
 		}
 
-		let first = bytes[0];
-		let s = &bytes[1..];
+		let (first, s) = (bytes[0], &bytes[1..]);
 
 		match first {
 			0x01 => Ok(Self::EIP2930(rlp::decode(s)?)),
@@ -132,7 +135,7 @@ impl EnvelopedEncodable for ReceiptV3 {
 		match self {
 			Self::Legacy(r)
 			| Self::EIP2930(r)
-			| Self::EIP1559(r) => rlp::encode(r),
+			| Self::EIP1559(r) => encode_rlp(r),
 		}
 	}
 }
@@ -151,8 +154,7 @@ impl EnvelopedDecodable for ReceiptV3 {
 			return Ok(Self::Legacy(Decodable::decode(&rlp)?));
 		}
 
-		let first = bytes[0];
-		let s = &bytes[1..];
+		let (first, s) = (bytes[0], &bytes[1..]);
 
 		match first {
 			0x01 => Ok(Self::EIP2930(rlp::decode(s)?)),
@@ -195,7 +197,7 @@ impl EnvelopedEncodable for ReceiptV4 {
 			Self::Legacy(r)
 			| Self::EIP2930(r)
 			| Self::EIP1559(r)
-			| Self::EIP7702(r) => rlp::encode(r),
+			| Self::EIP7702(r) => encode_rlp(r),
 		}
 	}
 }
@@ -214,8 +216,7 @@ impl EnvelopedDecodable for ReceiptV4 {
 			return Ok(Self::Legacy(Decodable::decode(&rlp)?));
 		}
 
-		let first = bytes[0];
-		let s = &bytes[1..];
+		let (first, s) = (bytes[0], &bytes[1..]);
 
 		match first {
 			0x01 => Ok(Self::EIP2930(rlp::decode(s)?)),
@@ -262,7 +263,7 @@ impl EnvelopedEncodable for ReceiptAny {
 			| Self::EIP658(r)
 			| Self::EIP2930(r)
 			| Self::EIP1559(r)
-			| Self::EIP7702(r) => rlp::encode(r),
+			| Self::EIP7702(r) => encode_rlp(r),
 		}
 	}
 }
@@ -289,8 +290,7 @@ impl EnvelopedDecodable for ReceiptAny {
 			return Err(DecoderError::RlpIncorrectListLen.into());
 		}
 
-		let first = bytes[0];
-		let s = &bytes[1..];
+		let (first, s) = (bytes[0], &bytes[1..]);
 
 		match first {
 			0x01 => Ok(Self::EIP2930(rlp::decode(s)?)),
